@@ -206,3 +206,86 @@ export default defineConfig({
     external: ["public.role"],
   },
 });
+
+const deletePosts = prisma.post.deleteMany({
+  where: {
+    authorId: 7,
+  },
+});
+
+const deleteUser = prisma.user.delete({
+  where: {
+    id: 7,
+  },
+});
+
+const transaction = await prisma.$transaction([deletePosts, deleteUser]);
+const tablenames = await prisma.$queryRaw<
+  Array<{ tablename: string }>
+>`SELECT tablename FROM pg_tables WHERE schemaname='public'`;
+
+const tables = tablenames
+  .map(({ tablename }) => tablename)
+  .filter((name) => name !== "_prisma_migrations")
+  .map((name) => `"public"."${name}"`)
+  .join(", ");
+
+try {
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} CASCADE;`);
+} catch (error) {
+  console.log({ error });
+}
+const u = await prisma.user.create({
+  include: {
+    posts: {
+      include: {
+        categories: true,
+      },
+    },
+  },
+  data: {
+    email: "emma@prisma.io",
+    posts: {
+      create: [
+        {
+          title: "My first post",
+          categories: {
+            connectOrCreate: [
+              {
+                create: { name: "Introductions" },
+                where: {
+                  name: "Introductions",
+                },
+              },
+              {
+                create: { name: "Social" },
+                where: {
+                  name: "Social",
+                },
+              },
+            ],
+          },
+        },
+        {
+          title: "How to make cookies",
+          categories: {
+            connectOrCreate: [
+              {
+                create: { name: "Social" },
+                where: {
+                  name: "Social",
+                },
+              },
+              {
+                create: { name: "Cooking" },
+                where: {
+                  name: "Cooking",
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+});
